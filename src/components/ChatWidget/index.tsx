@@ -10,7 +10,8 @@ import axios from "axios";
 import OpenAI from "openai";
 
 const openai = new OpenAI({
-    apiKey: "" //OpenAI api key,
+    apiKey: "", //OpenAI api key,
+    dangerouslyAllowBrowser: true
   });
 
 interface Message {
@@ -22,6 +23,22 @@ type ChatBoxProps = {
   apiKey: string;
   botName: string;
 };
+
+const chatMessages = [
+    {
+        "role": "system",
+        "content":
+            "You are a helpful AI search assistant for IISER Bhopal(a university) students.You are provided with a conversation history until now. Use the following pieces of context to answer the question at the end. If answer isn't in the context, say that you don't know, don't try to make up an answer.  ANSWER IN BULLET POINTS!."
+      },
+      {
+        "role" : "user",
+        "content" : "Hi there"
+      },
+      {
+        "role" : "assistant",
+        "content" : "Hi there! How can I assist you today?"
+      }
+  ]
 
 
 const generateResponse = async (url: string, question: string) => {
@@ -109,17 +126,28 @@ const ScubaChatWidget: React.FC<ChatBoxProps> = ({ botName }) => {
         const query = userInput.trim()
         const context = semantics
 
+        const lastMessage = messages[messages.length-1]
+
+        if(lastMessage != undefined) {
+            chatMessages.push({
+                role : "assistant",
+                content : `${lastMessage.text}`
+            })
+        }
+
+        chatMessages.push({
+            role: "user",
+            content: `Context : ${context}`
+        })
+
+        chatMessages.push({
+            role : "user",
+            content : `Question: ${query}`
+        })
+
         const response = await openai.chat.completions.create({
             model : "gpt-3.5-turbo-0125",
-            messages: [
-            {
-              "role": "system",
-              "content":
-                  "You are a helpful AI search assistant for IISER Bhopal(a university) students. Use the following pieces of context to answer the question at the end. If answer isn't in the context, say that you don't know, don't try to make up an answer. ANSWER IN BULLET POINTS!."
-            },
-            {"role": "user", "content": `Context: ${context}}`},
-            {"role": "user", "content": `Question: ${query}`}
-          ],
+            messages: chatMessages,
            stream : true,
           max_tokens: 256,
           temperature: 0.7
@@ -145,6 +173,9 @@ const ScubaChatWidget: React.FC<ChatBoxProps> = ({ botName }) => {
                 return [...messages.slice(0, -1), updatedMessage];
             })            
           }
+          
+
+          console.log(chatMessages)
         setLoading(false);
       });
     }
