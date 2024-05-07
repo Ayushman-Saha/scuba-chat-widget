@@ -28,7 +28,7 @@ const chatMessages = [
     {
         "role": "system",
         "content":
-            "You are a helpful AI search assistant for IISER Bhopal(a university) students.You are provided with a conversation history until now. Use the following pieces of context to answer the question at the end. If answer isn't in the context, say that you don't know, don't try to make up an answer.  ANSWER IN BULLET POINTS!."
+            "You are a helpful AI search assistant for IISER Bhopal(a university) students.You are provided with a conversation history until now. Use the following pieces of context to answer the question at the end. If answer isn't in the context, say NO CONTEXT FOUND, don't try to make up an answer.  ANSWER IN BULLET POINTS!."
       },
       {
         "role" : "user",
@@ -39,6 +39,8 @@ const chatMessages = [
         "content" : "Hi there! How can I assist you today?"
       }
   ]
+
+  let flag = true
 
 
 const generateResponse = async (url: string, question: string) => {
@@ -97,6 +99,66 @@ const generateSemantics = async (query : string) => {
 
 }
 
+const generateOpenAIResponse  = async(query: string, setMessages) => {
+
+    let generatedText = "";
+
+        if(flag) {
+            const context = await generateSemantics(query)
+            chatMessages.push({
+                role: "user",
+                content: `Context : ${context}`
+            })
+        }
+
+        flag = false;
+
+        
+
+        chatMessages.push({
+            role : "user",
+            content : `Question: ${query}`
+        })
+
+        const response = await openai.chat.completions.create({
+            model : "gpt-3.5-turbo-0125",
+            messages: chatMessages,
+           stream : true,
+          max_tokens: 256,
+          temperature: 0.5
+        });
+
+        setMessages((messages : Message[]) => [
+            ...messages,
+            {
+              sender: "bot",
+              text: ``,
+            },
+          ]);
+    
+        for await (const chunk of response) {
+            const word = chunk.choices[0]?.delta?.content || ''
+            generatedText = generatedText + word
+            setMessages((messages : Message[]) => {
+                const lastMessage = messages[messages.length -1];
+                const updatedMessage = {
+                    ...lastMessage,
+                    text : lastMessage.text + word
+                };
+                return [...messages.slice(0, -1), updatedMessage];
+            })            
+          }
+
+
+          chatMessages.push({
+            role: "assistant",
+            content: `${generatedText}`
+          })
+        
+        //   console.log(chatMessages)
+          return query
+}
+
 const ScubaChatWidget: React.FC<ChatBoxProps> = ({ botName }) => {
   const [showChatbox, setShowChatbox] = useState(false);
   const [userInput, setUserInput] = useState("");
@@ -120,64 +182,17 @@ const ScubaChatWidget: React.FC<ChatBoxProps> = ({ botName }) => {
         },
       ]);
       setUserInput("");
-      generateSemantics(
-        userInput.trim(),
-      ).then(async(semantics): Promise<void> => { 
-        const query = userInput.trim()
-        const context = semantics
-
-        const lastMessage = messages[messages.length-1]
-
-        if(lastMessage != undefined) {
-            chatMessages.push({
-                role : "assistant",
-                content : `${lastMessage.text}`
+      generateOpenAIResponse(userInput.trim(),setMessages).then((query) => {
+        setLoading(false);
+        // console.log(messages)
+        if(chatMessages[chatMessages.length-1].content.includes("No context") || chatMessages[chatMessages.length-1].content.includes("NO CONTEXT")) {
+            setLoading(true)
+            flag = true
+            generateOpenAIResponse(query, setMessages).then(() => {
+                setLoading(false)
             })
         }
-
-        chatMessages.push({
-            role: "user",
-            content: `Context : ${context}`
-        })
-
-        chatMessages.push({
-            role : "user",
-            content : `Question: ${query}`
-        })
-
-        const response = await openai.chat.completions.create({
-            model : "gpt-3.5-turbo-0125",
-            messages: chatMessages,
-           stream : true,
-          max_tokens: 256,
-          temperature: 0.7
-        });
-
-        setMessages((messages) => [
-            ...messages,
-            {
-              sender: "bot",
-              text: ``,
-            },
-          ]);
-    
-        for await (const chunk of response) {
-            const word = chunk.choices[0]?.delta?.content || ''
-
-            setMessages((messages) => {
-                const lastMessage = messages[messages.length -1];
-                const updatedMessage = {
-                    ...lastMessage,
-                    text : lastMessage.text + word
-                };
-                return [...messages.slice(0, -1), updatedMessage];
-            })            
-          }
-          
-
-          console.log(chatMessages)
-        setLoading(false);
-      });
+      })
     }
   };
 
