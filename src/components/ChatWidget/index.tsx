@@ -40,6 +40,8 @@ const chatMessages = [
       }
   ]
 
+  let flag = true
+
 
 const generateResponse = async (url: string, question: string) => {
   const res = await axios.post(
@@ -135,10 +137,14 @@ const ScubaChatWidget: React.FC<ChatBoxProps> = ({ botName }) => {
             })
         }
 
-        chatMessages.push({
-            role: "user",
-            content: `Context : ${context}`
-        })
+        if(flag) {
+            chatMessages.push({
+                role: "user",
+                content: `Context : ${context}`
+            })
+        }
+        
+        flag = false
 
         chatMessages.push({
             role : "user",
